@@ -1,0 +1,19 @@
+[
+    {
+        "surf_4fun_e":
+        {
+            "variables": {
+                "mp_buytime": "0.25"
+            }
+        },
+
+        "surf_ski_2_nova":
+        {
+            "variables":{
+                "hostname": "Some hostname",
+                "mp_buytime": "1",
+                "#": "comment"
+            }
+        }
+    }
+]

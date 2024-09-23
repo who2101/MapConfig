@@ -1,0 +1,19 @@
+{
+    "unload": [
+        "some_plugin.smx",
+        "folder/some_plugin.smx"
+    ],
+    "load": [
+        "some_plugin.smx",
+        "folder/some_plugin.smx"
+    ],
+    "reload": [
+        "some_plugin.smx",
+        "folder/some_plugin.smx"
+    ],
+
+    "variables": {
+        "hostname": "Some hostname",
+        "mp_limitteams": "0"
+    }
+}

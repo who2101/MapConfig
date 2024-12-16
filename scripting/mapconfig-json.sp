@@ -4,22 +4,27 @@
 #include <wlib/map>
 #include <json>
 
-#pragma dynamic 262144
+#define DEBUG 				0
 
-#define DEBUG 0
+#define CONFIG_DEFAULT 		"configs/mapconfig/default.json"
+#define CONFIG_GAMETYPES 	"configs/mapconfig/gametypes.json"
+#define CONFIG_MAPGROUPS 	"configs/mapconfig/groups.json"
+#define CONFIG_MAPS 		"configs/mapconfig/maps.json"
 
-#define CONFIG_DEFAULT "configs/mapconfig/default.json"
-#define CONFIG_GAMETYPES "configs/mapconfig/gametypes.json"
-#define CONFIG_MAPS "configs/mapconfig/maps.json"
-
-char sMap[128], sGamemodePrefix[64];
-char sDefaultFile[256], sGametypeFile[256], sMapsFile[256];
+char 
+	sMap[128],				// Текущая карта
+	sGamemodePrefix[64],	// Текущий режим, например: de
+	sDefaultFile[256],		// Пути к json файлам
+	sGametypeFile[256],
+	sMapsFile[256],
+	sGroupsFile[256];
 
 public void OnPluginStart()
 {
 	BuildPath(Path_SM, sDefaultFile, sizeof sDefaultFile, CONFIG_DEFAULT);
 	BuildPath(Path_SM, sGametypeFile, sizeof sGametypeFile, CONFIG_GAMETYPES);
 	BuildPath(Path_SM, sMapsFile, sizeof sMapsFile, CONFIG_MAPS);
+	BuildPath(Path_SM, sGroupsFile, sizeof sGroupsFile, CONFIG_MAPGROUPS);
 }
 
 public void OnMapStart()
@@ -30,152 +35,269 @@ public void OnMapStart()
 
 public void OnConfigsExecuted()
 {
-	ParseJSON_Default(sDefaultFile);
-	ParseJSON_GameTypes(sGametypeFile, sGamemodePrefix);
-	ParseJSON_Maps(sMapsFile, sMap);
+	LoadDefault(sDefaultFile);
+	LoadGametype(sGametypeFile, sGamemodePrefix);
+	LoadMapGroup(sGroupsFile, sMap);
+	LoadMap(sMapsFile, sMap);
 }
 
-void ParseJSON_Default(const char[] filePath)
+void LoadDefault(const char[] filePath)
 {
-	if (!FileExists(filePath)) SetFailState("File %s is not exists", filePath);
+	if (!FileExists(filePath)) SetFailState("Config %s not found", filePath);
 	
-	JSON_Object json_obj = json_read_from_file(filePath);
-	
-	if (json_obj != null)
+	JSONObject json_array = JSONObject.FromFile(filePath);
+
+	if(json_array.HasKey("load"))
 	{
-		ParseJSON_Obj(json_obj);
-		json_cleanup_and_delete(json_obj);
+		JSONArray loadArray = view_as<JSONArray>(json_array.Get("load"));
+		LoadPlugins(loadArray);
 	}
-}
-
-void ParseJSON_GameTypes(const char[] filePath, const char[] gamemodePrefix)
-{
-	if (!FileExists(filePath)) SetFailState("File %s is not exists", filePath);
 	
-	JSON_Array jsonArray = view_as<JSON_Array>(json_read_from_file(filePath));
-	
-	if (jsonArray == null) return;
-	
-	JSON_Object json_obj = jsonArray.GetObject(0);
-	
-	if (json_obj == null) return;
-
-	if ((json_obj = json_obj.GetObject(gamemodePrefix)) != null)
+	if(json_array.HasKey("unload"))
 	{
-		ParseJSON_Obj(json_obj);
-		json_cleanup_and_delete(jsonArray);
+		JSONArray unloadArray = view_as<JSONArray>(json_array.Get("unload"));
+		UnloadPlugins(unloadArray);
 	}
-}
 
-void ParseJSON_Maps(const char[] filePath, const char[] map)
-{
-	if (!FileExists(filePath)) SetFailState("File %s is not exists", filePath);
-	
-	JSON_Array jsonArray = view_as<JSON_Array>(json_read_from_file(filePath));
-	
-	if (jsonArray == null) return;
-	
-	JSON_Object json_obj = jsonArray.GetObject(0);
-	
-	if (json_obj == null) return;
-
-	if ((json_obj = json_obj.GetObject(map)) != null)
+	if(json_array.HasKey("reload"))
 	{
-		ParseJSON_Obj(json_obj);
-		json_cleanup_and_delete(jsonArray);
+		JSONArray reloadArray = view_as<JSONArray>(json_array.Get("reload"));
+		ReloadPlugins(reloadArray);
 	}
+
+	if(json_array.HasKey("variables"))
+	{
+		JSONObject variablesObject = view_as<JSONObject>(json_array.Get("variables"));
+		LoadVariables(variablesObject);
+	}	
+
+	json_array.Close();
 }
 
-void ParseJSON_Obj(JSON_Object json_obj)
+void LoadGametype(const char[] filePath, const char[] gamemodePrefix)
 {
-	JSON_Array unloadArray = view_as<JSON_Array>(json_obj.GetObject("unload"));
-	JSON_Array loadArray = view_as<JSON_Array>(json_obj.GetObject("load"));
-	JSON_Array reloadArray = view_as<JSON_Array>(json_obj.GetObject("reload"));
-	JSON_Object variables_obj = json_obj.GetObject("variables");
+	if (!FileExists(filePath)) SetFailState("Config %s not found", filePath);
 	
-	char buffer[512];
+	JSONArray json_array = JSONArray.FromFile(filePath);
+	JSONObject json_object = view_as<JSONObject>(json_array.Get(0));
 	
-	if (unloadArray != null)
+	if(json_object.HasKey(gamemodePrefix))
 	{
-		for (int i = 0; i < unloadArray.Length; i++) {
-			buffer[0] = 0;
-			unloadArray.GetString(i, buffer, sizeof buffer);
-			
-			if (buffer[0])
-			{
-				if (StrContains(buffer, ".smx") != -1)ServerCommand("sm plugins unload %s", buffer);
-				else ServerCommand("sm plugins unload %s.smx", buffer);
-				
-				#if DEBUG
-				PrintToServer("[MC-JSON] Unload - %s", buffer);
-				#endif
-			}
+		JSONObject gamemodeObject = view_as<JSONObject>(json_object.Get(gamemodePrefix));
+	
+		if(gamemodeObject.HasKey("load"))
+		{
+			JSONArray loadArray = view_as<JSONArray>(gamemodeObject.Get("load"));
+			LoadPlugins(loadArray);
 		}
-	}
-	
-	if (loadArray != null)
-	{
-		for (int i = 0; i < loadArray.Length; i++) {
-			buffer[0] = 0;
-			loadArray.GetString(i, buffer, sizeof buffer);
-			
-			if (buffer[0])
-			{
-				if (StrContains(buffer, ".smx") != -1)ServerCommand("sm plugins load %s", buffer);
-				else ServerCommand("sm plugins load %s.smx", buffer);
-				
-				#if DEBUG
-				PrintToServer("[MC-JSON] Load - %s", buffer);
-				#endif
-			}
-		}
-	}
-	
-	if (reloadArray != null)
-	{
-		for (int i = 0; i < reloadArray.Length; i++) {
-			buffer[0] = 0;
-			reloadArray.GetString(i, buffer, sizeof buffer);
-			
-			if (buffer[0])
-			{
-				if (StrContains(buffer, ".smx") != -1)ServerCommand("sm plugins reload %s", buffer);
-				else ServerCommand("sm plugins reload %s.smx", buffer);
-				
-				#if DEBUG
-				PrintToServer("[MC-JSON] - Reload - %s", buffer);
-				#endif
-			}
-		}
-	}
-	
-	if (variables_obj != null)
-	{
-		int key_length = 0;
 		
-		// It does not work without it
-		char out[1024];
-		variables_obj.Encode(out, sizeof out);
+		if(gamemodeObject.HasKey("unload"))
+		{
+			JSONArray unloadArray = view_as<JSONArray>(gamemodeObject.Get("unload"));
+			UnloadPlugins(unloadArray);		
+		}
 		
-		for (int i = 0; i < variables_obj.Length; i += 1) {
-			buffer[0] = 0;
-			key_length = variables_obj.GetKeySize(i);
-			char[] key = new char[key_length];
-			variables_obj.GetKey(i, key, key_length);
+		if(gamemodeObject.HasKey("reload"))
+		{
+			JSONArray reloadArray = view_as<JSONArray>(gamemodeObject.Get("reload"));
+			ReloadPlugins(reloadArray);
+		}
+			
+		if(gamemodeObject.HasKey("variables"))
+		{		
+			JSONObject variablesObject = view_as<JSONObject>(gamemodeObject.Get("variables"));
+			LoadVariables(variablesObject);
+		}
 
-			if (!strcmp(key, "#") || !strcmp(key, "_comment") || !strcmp(key, "//") || !strcmp(key, "__comment__"))
-				continue;
+		gamemodeObject.Close();
+	}
+
+	json_object.Close();
+	json_array.Close();
+}
+
+void LoadMap(const char[] filePath, const char[] map)
+{
+	if (!FileExists(filePath)) SetFailState("Config %s not found", filePath);
+	
+	JSONArray json_array = JSONArray.FromFile(filePath);
+	JSONObject json_object = view_as<JSONObject>(json_array.Get(0));
+	
+	if(json_object.HasKey(map))
+	{
+		JSONObject gamemodeObject = view_as<JSONObject>(json_object.Get(map));
+
+		if(gamemodeObject.HasKey("load"))
+		{
+			JSONArray loadArray = view_as<JSONArray>(gamemodeObject.Get("load"));
+			LoadPlugins(loadArray);
+		}		
+
+		if(gamemodeObject.HasKey("unload"))
+		{
+			JSONArray unloadArray = view_as<JSONArray>(gamemodeObject.Get("unload"));
+			UnloadPlugins(unloadArray);		
+		}
+	
+
+		
+		if(gamemodeObject.HasKey("reload"))
+		{
+			JSONArray reloadArray = view_as<JSONArray>(gamemodeObject.Get("reload"));
+			ReloadPlugins(reloadArray);
+		}
 			
-			variables_obj.GetString(key, buffer, sizeof buffer);
-			
-			if (buffer[0])
+		if(gamemodeObject.HasKey("variables"))
+		{		
+			JSONObject variablesObject = view_as<JSONObject>(gamemodeObject.Get("variables"));
+			LoadVariables(variablesObject);
+		}
+		
+		gamemodeObject.Close();
+	}
+
+	json_object.Close();
+	json_array.Close();
+}
+
+void LoadMapGroup(const char[] filePath, const char[] map)
+{
+	if (!FileExists(filePath)) SetFailState("Config %s not found", filePath);
+	
+	JSONArray json_array = JSONArray.FromFile(filePath);
+	JSONObject json_object = view_as<JSONObject>(json_array.Get(0));
+	
+	JSONObjectKeys keys = json_object.Keys();
+
+	char
+		groupSection[256],		// Названия групп карт
+		mapName[256]; 			// Используется при обходе массива mapsArray
+
+	while(keys.ReadKey(groupSection, sizeof groupSection))
+	{
+		JSONObject groupObject = view_as<JSONObject>(json_object.Get(groupSection));
+		JSONArray mapsArray = view_as<JSONArray>(groupObject.Get("maps"));
+
+		for(int i = 0; i < mapsArray.Length; i++)
+		{
+			if(mapsArray.GetString(i, mapName, sizeof mapName) && !strcmp(map, mapName))
 			{
-				ServerCommand("%s \"%s\"", key, buffer);
+				if(groupObject.HasKey("load"))
+				{
+					JSONArray loadArray = view_as<JSONArray>(groupObject.Get("load"));
+					LoadPlugins(loadArray);
+				}
 				
-				#if DEBUG
-				PrintToServer("%s %s", key, buffer);
-				#endif
+				if(groupObject.HasKey("unload"))
+				{
+					JSONArray unloadArray = view_as<JSONArray>(groupObject.Get("unload"));
+					UnloadPlugins(unloadArray);
+				}
+				
+				if(groupObject.HasKey("reload"))
+				{
+					JSONArray reloadArray = view_as<JSONArray>(groupObject.Get("reload"));
+					ReloadPlugins(reloadArray);					
+				}
+
+				if(groupObject.HasKey("variables"))
+				{
+					JSONObject variablesObject = view_as<JSONObject>(groupObject.Get("variables"));
+					LoadVariables(variablesObject);
+				}
 			}
 		}
+		
+		mapsArray.Close();
+		groupObject.Close();
 	}
-} 
+	
+	keys.Close();
+	json_object.Close();
+	json_array.Close();
+}
+
+void LoadPlugins(JSONArray loadArray)
+{
+	char buffer[256];
+
+	for(int load_index = 0; load_index < loadArray.Length; load_index++)
+	{
+		loadArray.GetString(load_index, buffer, sizeof buffer);
+
+		ServerCommand(IsPluginHasSMX(buffer) ? "sm plugins load %s" : "sm plugins load %s.smx", buffer);
+
+		#if DEBUG
+		PrintToChatAll("Load: %s", buffer);
+		#endif
+	}
+	
+	loadArray.Close();
+}
+
+void ReloadPlugins(JSONArray reloadArray)
+{
+	char buffer[256];
+
+	for(int reload_index = 0; reload_index < reloadArray.Length; reload_index++)
+	{
+		reloadArray.GetString(reload_index, buffer, sizeof buffer);
+
+		ServerCommand(IsPluginHasSMX(buffer) ? "sm plugins reload %s" : "sm plugins reload %s.smx", buffer);
+		
+		#if DEBUG
+		PrintToChatAll("Reload: %s", buffer);
+		#endif
+	}
+	
+	reloadArray.Close();
+}
+
+void UnloadPlugins(JSONArray unloadArray)
+{
+	char buffer[256];
+
+	for(int unload_index = 0; unload_index < unloadArray.Length; unload_index++)
+	{
+		unloadArray.GetString(unload_index, buffer, sizeof buffer);
+
+		ServerCommand(IsPluginHasSMX(buffer) ? "sm plugins unload %s" : "sm plugins unload %s.smx", buffer);
+		
+		#if DEBUG
+		PrintToChatAll("Unload: %s", buffer);
+		#endif
+	}
+	
+	unloadArray.Close();
+}
+
+void LoadVariables(JSONObject variablesObject)
+{
+	JSONObjectKeys variablesKeys = variablesObject.Keys();
+	
+	char
+		variable[128],
+		value[128];
+	
+	while (variablesKeys.ReadKey(variable, sizeof variable))
+	{
+		variablesObject.GetString(variable, value, sizeof value);
+
+		ServerCommand("%s \"%s\"", variable, value);
+
+		#if DEBUG
+		PrintToChatAll("Variable: %s | Value: %s", variable, value);
+		#endif
+	}
+	
+	variablesKeys.Close();
+	variablesObject.Close();
+}
+
+// Проверяет, есть у плагина расширение .smx
+bool IsPluginHasSMX(const char[] plugin_name)
+{
+	int length = strlen(plugin_name);
+
+	return !strcmp(plugin_name[length-4], ".smx", false);
+}

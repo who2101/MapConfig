@@ -1,0 +1,26 @@
+[
+    {
+        "mg_pvp":
+        {
+            "maps": [
+                "test",
+                "test3"
+            ],
+            "unload": [
+                "plugin.smx",
+                "plugin2"
+            ]
+        },
+        "mg_course":
+        {
+            "maps": [
+                "test2",
+                "test4"
+            ],
+            "unload": [
+                "plugin.smx",
+                "plugin2"
+            ]
+        }
+    }
+]

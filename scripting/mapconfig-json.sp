@@ -119,7 +119,7 @@ void LoadGametype(const char[] filePath, const char[] gamemodePrefix)
 void LoadMap(const char[] filePath, const char[] map)
 {
 	if (!FileExists(filePath)) SetFailState("Config %s not found", filePath);
-	
+
 	JSONArray json_array = JSONArray.FromFile(filePath);
 	JSONObject json_object = view_as<JSONObject>(json_array.Get(0));
 	
@@ -138,12 +138,9 @@ void LoadMap(const char[] filePath, const char[] map)
 			JSONArray unloadArray = view_as<JSONArray>(gamemodeObject.Get("unload"));
 			UnloadPlugins(unloadArray);		
 		}
-	
 
-		
 		if(gamemodeObject.HasKey("reload"))
-		{
-			JSONArray reloadArray = view_as<JSONArray>(gamemodeObject.Get("reload"));
+		{			JSONArray reloadArray = view_as<JSONArray>(gamemodeObject.Get("reload"));
 			ReloadPlugins(reloadArray);
 		}
 			
@@ -228,7 +225,7 @@ void LoadPlugins(JSONArray loadArray)
 		ServerCommand(IsPluginHasSMX(buffer) ? "sm plugins load %s" : "sm plugins load %s.smx", buffer);
 
 		#if DEBUG
-		PrintToChatAll("Load: %s", buffer);
+		PrintToConsoleAll("Load: %s", buffer);
 		#endif
 	}
 	
@@ -246,7 +243,7 @@ void ReloadPlugins(JSONArray reloadArray)
 		ServerCommand(IsPluginHasSMX(buffer) ? "sm plugins reload %s" : "sm plugins reload %s.smx", buffer);
 		
 		#if DEBUG
-		PrintToChatAll("Reload: %s", buffer);
+		PrintToConsoleAll("Reload: %s", buffer);
 		#endif
 	}
 	
@@ -264,7 +261,7 @@ void UnloadPlugins(JSONArray unloadArray)
 		ServerCommand(IsPluginHasSMX(buffer) ? "sm plugins unload %s" : "sm plugins unload %s.smx", buffer);
 		
 		#if DEBUG
-		PrintToChatAll("Unload: %s", buffer);
+		PrintToConsoleAll("Unload: %s", buffer);
 		#endif
 	}
 	
@@ -286,7 +283,7 @@ void LoadVariables(JSONObject variablesObject)
 		ServerCommand("%s \"%s\"", variable, value);
 
 		#if DEBUG
-		PrintToChatAll("Variable: %s | Value: %s", variable, value);
+		PrintToConsoleAll("Variable: %s | Value: %s", variable, value);
 		#endif
 	}
 	
